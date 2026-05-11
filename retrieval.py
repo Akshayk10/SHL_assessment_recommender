@@ -12,15 +12,12 @@ from pathlib import Path
 from models import CatalogEntry
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# LOAD
-# ─────────────────────────────────────────────────────────────────────────────
 
 _CATALOG_PATH = Path(__file__).parent / "data" / "catalog.json"
 
 _catalog: list[CatalogEntry] = []
 _valid_urls: set[str] = set()
-_name_index: dict[str, CatalogEntry] = {}  # lowercase name → entry
+_name_index: dict[str, CatalogEntry] = {}
 
 
 def load_catalog() -> list[CatalogEntry]:
@@ -58,9 +55,6 @@ def find_by_name(name: str) -> CatalogEntry | None:
     return _name_index.get(name.lower())
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# FORMAT
-# ─────────────────────────────────────────────────────────────────────────────
 
 def format_catalog_for_prompt(catalog: list[CatalogEntry]) -> str:
     """
@@ -75,7 +69,6 @@ def format_catalog_for_prompt(catalog: list[CatalogEntry]) -> str:
             f"TYPE: {entry.test_type} ({entry.test_type_label})",
         ]
         if entry.description:
-            # Truncate long descriptions to keep prompt size manageable
             desc = entry.description[:300].strip()
             block.append(f"DESCRIPTION: {desc}")
         if entry.duration:
@@ -90,7 +83,6 @@ def format_catalog_for_prompt(catalog: list[CatalogEntry]) -> str:
     return "\n".join(lines)
 
 
-# In retrieval.py, add this function:
 
 def filter_recommendations_to_catalog(
     recs: list[dict],
@@ -107,16 +99,13 @@ def filter_recommendations_to_catalog(
     for r in recs:
         url = r.get("url", "")
         
-        # Check if URL is valid
         if url in valid_urls:
             filtered.append(r)
             continue
             
-        # Try to match by name (in case URL is slightly different)
         name = r.get("name", "")
         if name.lower() in _name_index:
             correct_entry = _name_index[name.lower()]
-            # Use the correct URL from catalog
             r["url"] = correct_entry.url
             r["test_type"] = correct_entry.test_type
             filtered.append(r)

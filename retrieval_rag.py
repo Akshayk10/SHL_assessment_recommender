@@ -18,7 +18,6 @@ class SHLRetrievalSystem:
         self.catalog = []
         self.index = None
         self.model = None
-        # Using BAAI/bge-small-en-v1.5 - much smaller than sentence-transformers
         self.model_name = "BAAI/bge-small-en-v1.5"
         
     def load_catalog(self):
@@ -55,24 +54,20 @@ class SHLRetrievalSystem:
             self.load_catalog()
         
         logger.info(f"Initializing fastembed with model: {self.model_name}")
-        # Initialize fastembed (much lighter than sentence-transformers)
         self.model = TextEmbedding(model_name=self.model_name)
         
         documents = [self.create_document_text(assess) for assess in self.catalog]
         logger.info(f"Creating embeddings for {len(documents)} documents...")
         
-        # Generate embeddings one by one to save memory
         embeddings = []
         for i, doc in enumerate(documents):
             if i % 50 == 0:
                 logger.info(f"Progress: {i}/{len(documents)}")
-            # fastembed returns generator, convert to list and take first
             embedding = list(self.model.embed([doc]))[0]
             embeddings.append(embedding)
         
         embeddings = np.array(embeddings, dtype='float32')
         
-        # Build FAISS index
         dimension = embeddings.shape[1]
         self.index = faiss.IndexFlatL2(dimension)
         self.index.add(embeddings)
@@ -86,19 +81,15 @@ class SHLRetrievalSystem:
         if self.index is None:
             self.build_index()
         
-        # Encode query with fastembed
         query_embedding = list(self.model.embed([query.lower()]))[0]
         query_embedding = np.array([query_embedding], dtype='float32')
         
-        # Search FAISS index
         distances, indices = self.index.search(query_embedding, k)
         
-        # Return results with scores
         results = []
         for i, idx in enumerate(indices[0]):
             if idx != -1 and idx < len(self.catalog):
                 assessment = self.catalog[idx].copy()
-                # Convert L2 distance to similarity score (0-1 range)
                 similarity = 1 / (1 + distances[0][i])
                 assessment['relevance_score'] = float(similarity)
                 results.append(assessment)
@@ -134,7 +125,6 @@ def get_retrieval_system() -> SHLRetrievalSystem:
     if _retrieval_system is None:
         _retrieval_system = SHLRetrievalSystem()
         _retrieval_system.load_catalog()
-        # Build index on first use (not at startup)
     return _retrieval_system
 
 def retrieve_assessments(query: str, k: int = 8) -> List[Dict]:
