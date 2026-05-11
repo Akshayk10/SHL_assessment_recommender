@@ -36,6 +36,10 @@ cd shl-recommender
 pip install -r requirements.txt
 playwright install chromium  # for JS-rendered pages
 ```
+### Python Version
+
+This project requires **Python 3.11.15** or higher. Recommended: Python 3.11.15
+
 
 ### 2. Set environment variables
 

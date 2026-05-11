@@ -42,25 +42,25 @@ _catalog_text: str = ""
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load catalog and initialize RAG at startup"""
+    """Load catalog at startup, build index lazily"""
     global _catalog_text
-    logger.info("Loading SHL catalog and initializing RAG...")
+    
+    logger.info("Loading SHL catalog...")
     try:
-        # Initialize retrieval system (this builds FAISS index)
+        # Only load catalog metadata, don't build index yet
         from retrieval_rag import get_retrieval_system
         retrieval = get_retrieval_system()
-        logger.info(f"RAG system initialized with {len(retrieval.catalog)} assessments")
+        logger.info(f"Catalog loaded: {len(retrieval.catalog)} assessments")
+        logger.info("FAISS index will be built on first search (lazy loading)")
         
-        # Keep for compatibility
+        # For backward compatibility
         from retrieval import load_catalog, format_catalog_for_prompt
         catalog = load_catalog()
         _catalog_text = format_catalog_for_prompt(catalog)
         
-    except FileNotFoundError as e:
-        logger.error(f"Catalog not found: {e}")
-        logger.error("Run: python scripts/scrape_catalog.py first")
     except Exception as e:
         logger.error(f"Startup error: {e}")
+    
     yield
     logger.info("Shutting down.")
 
