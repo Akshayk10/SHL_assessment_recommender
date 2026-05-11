@@ -16,7 +16,7 @@ from models import CatalogEntry
 # LOAD
 # ─────────────────────────────────────────────────────────────────────────────
 
-_CATALOG_PATH = Path(__file__).parent.parent / "SHL" /"data" / "catalog.json"
+_CATALOG_PATH = Path(__file__).parent / "data" / "catalog.json"
 
 _catalog: list[CatalogEntry] = []
 _valid_urls: set[str] = set()
