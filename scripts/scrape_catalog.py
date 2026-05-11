@@ -23,6 +23,10 @@ from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
 
+# ─────────────────────────────────────────────────────────────────────────────
+# CONFIG
+# ─────────────────────────────────────────────────────────────────────────────
+
 BASE_URL        = "https://www.shl.com"
 CATALOG_BASE    = "https://www.shl.com/products/product-catalog/"
 PAGE_SIZE       = 12
@@ -51,6 +55,10 @@ TEST_TYPE_MAP = {
 }
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# FETCH WITH RETRY
+# ─────────────────────────────────────────────────────────────────────────────
+
 def fetch_with_retry(url: str, max_attempts: int = 5, timeout: int = 30) -> str:
     """
     Fetch a URL, retrying on timeout or connection errors.
@@ -76,6 +84,10 @@ def fetch_page(start: int) -> str:
     url = f"{CATALOG_BASE}?start={start}&type=1"
     return fetch_with_retry(url)
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PARSE
+# ─────────────────────────────────────────────────────────────────────────────
 
 def parse_page(html: str) -> list[dict]:
     """
@@ -144,6 +156,10 @@ def get_last_start(html: str) -> int:
     return max_start
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# ENRICH
+# ─────────────────────────────────────────────────────────────────────────────
+
 def enrich(assessment: dict) -> dict:
     """Fetch the detail page and extract description + duration."""
     try:
@@ -186,6 +202,10 @@ def enrich(assessment: dict) -> dict:
     return assessment
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# CHECKPOINT HELPERS
+# ─────────────────────────────────────────────────────────────────────────────
+
 def load_checkpoint() -> dict:
     if CHECKPOINT_PATH.exists():
         with open(CHECKPOINT_PATH, encoding="utf-8") as f:
@@ -199,9 +219,16 @@ def save_checkpoint(scraped_pages: list[int], items: list[dict]):
         json.dump({"scraped_pages": scraped_pages, "items": items}, f, indent=2)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# MAIN
+# ─────────────────────────────────────────────────────────────────────────────
+
 def main():
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+
     print("── SHL Catalog Scraper ──────────────────────────────")
+
+    # ── PHASE 1: Scrape catalog pages ────────────────────────────────────────
     checkpoint = load_checkpoint()
     scraped_pages: list[int] = checkpoint["scraped_pages"]
     all_items: list[dict]    = checkpoint["items"]
@@ -244,6 +271,9 @@ def main():
     seen: set[str] = set()
     unique = [a for a in all_items if not (a["url"] in seen or seen.add(a["url"]))]
     print(f"\n  Total scraped: {len(all_items)}  |  Unique: {len(unique)}\n")
+
+    # ── PHASE 2: Enrich with detail pages ────────────────────────────────────
+    # Load any previously enriched items so we don't re-fetch them
     existing: dict[str, dict] = {}
     if OUTPUT_PATH.exists():
         with open(OUTPUT_PATH, encoding="utf-8") as f:

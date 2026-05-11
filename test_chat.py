@@ -14,7 +14,15 @@ from threading import Lock
 
 BASE_URL = "http://localhost:8000"
 
-MIN_REQUEST_INTERVAL = 2.0
+# Global rate limiter
+_last_request_time = 0
+_rate_limit_lock = Lock()
+MIN_REQUEST_INTERVAL = 2.0  # 2 seconds between requests (increased from 0.5)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RATE LIMITING DECORATOR with thread safety
+# ─────────────────────────────────────────────────────────────────────────────
 
 def rate_limit_delay(func):
     """Add delay between requests to avoid rate limits"""
@@ -34,13 +42,18 @@ def rate_limit_delay(func):
         return func(*args, **kwargs)
     return wrapper
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HELPERS
+# ─────────────────────────────────────────────────────────────────────────────
+
 @rate_limit_delay
 def chat(messages: list[dict]) -> dict:
     """Send a POST /chat request with rate limit protection."""
     response = httpx.post(
         f"{BASE_URL}/chat",
         json={"messages": messages},
-        timeout=60,
+        timeout=60,  # Increased timeout for retries
     )
     assert response.status_code == 200, f"HTTP {response.status_code}: {response.text}"
     return response.json()
@@ -62,11 +75,21 @@ def assert_schema(resp: dict):
         assert "test_type" in rec, "Recommendation missing 'test_type'"
         assert rec["url"].startswith("https://www.shl.com"), f"Invalid URL: {rec['url']}"
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HEALTH CHECK
+# ─────────────────────────────────────────────────────────────────────────────
+
 def test_health():
     """Health check endpoint should return OK."""
     response = httpx.get(f"{BASE_URL}/health", timeout=10)
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SCENARIO 1: Vague query → must ask a clarifying question
+# ─────────────────────────────────────────────────────────────────────────────
 
 def test_vague_query_no_recommendations():
     """Agent must NOT recommend on turn 1 when query is vague."""
@@ -89,6 +112,11 @@ def test_vague_query_no_role():
     assert_schema(resp)
     assert resp["recommendations"] == []
     print("✓ Vague query without role correctly refused")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SCENARIO 2: Enough context → valid shortlist
+# ─────────────────────────────────────────────────────────────────────────────
 
 def test_enough_context_returns_recommendations():
     """Agent should recommend when role + seniority are given."""
@@ -128,6 +156,11 @@ def test_recommendations_have_valid_shl_urls():
         assert "shl.com" in rec["url"], f"Non-SHL URL found: {rec['url']}"
     print(f"✓ All {len(resp['recommendations'])} URLs are valid SHL links")
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SCENARIO 3: Refinement → updated shortlist, not restart
+# ─────────────────────────────────────────────────────────────────────────────
+
 def test_refinement_updates_shortlist():
     """Adding a constraint mid-conversation should update the list."""
     messages = [
@@ -141,6 +174,7 @@ def test_refinement_updates_shortlist():
     ]
     resp = chat(messages)
     assert_schema(resp)
+    # Should still have recommendations (refined, not cleared)
     assert len(resp["recommendations"]) >= 1, "Refinement should not clear recommendations"
     print(f"\n✓ Refinement returned {len(resp['recommendations'])} recommendations")
 
@@ -164,6 +198,11 @@ def test_refinement_remove_constraint():
     assert len(resp["recommendations"]) >= 1
     print(f"✓ Constraint removal returned {len(resp['recommendations'])} recommendations")
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SCENARIO 4: Comparison → grounded answer
+# ─────────────────────────────────────────────────────────────────────────────
+
 def test_comparison_grounded():
     """Comparison question should return a reply and NO new recommendations."""
     messages = [
@@ -173,6 +212,11 @@ def test_comparison_grounded():
     assert_schema(resp)
     assert len(resp["reply"]) > 50, "Comparison reply should be informative"
     print(f"\n✓ Comparison reply length: {len(resp['reply'])} chars")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SCENARIO 5: Off-topic → polite refusal
+# ─────────────────────────────────────────────────────────────────────────────
 
 def test_offtopic_general_hiring_advice():
     """General hiring advice is outside scope."""
@@ -217,15 +261,21 @@ def test_non_shl_assessment_refused():
     assert resp["recommendations"] == [], "Should not recommend non-SHL assessments"
     print("✓ Non-SHL product request correctly refused")
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TURN CAP
+# ─────────────────────────────────────────────────────────────────────────────
+
 def test_turn_cap_honored():
     """Agent must commit to a shortlist before 8 total turns."""
     messages = []
-    for i in range(4):
+    for i in range(4):  # 4 user turns
         messages.append({"role": "user", "content": "I need an assessment for a software engineer."})
         resp = chat(messages)
         assert_schema(resp)
         messages.append({"role": "assistant", "content": resp["reply"]})
 
+    # By turn 4 (8 messages), should have committed to a shortlist
     final_messages = [
         {"role": "user", "content": "I need an assessment for a software engineer."},
         {"role": "assistant", "content": "What seniority level are you targeting?"},
@@ -237,10 +287,16 @@ def test_turn_cap_honored():
     ]
     resp = chat(final_messages)
     assert_schema(resp)
+    # At 7 messages (turn 4), agent MUST commit
     assert len(resp["recommendations"]) >= 1, (
         "Agent must commit to recommendations by turn 4."
     )
     print(f"✓ Turn cap honored - committed with {len(resp['recommendations'])} recommendations")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SCHEMA COMPLIANCE EDGE CASES
+# ─────────────────────────────────────────────────────────────────────────────
 
 def test_response_always_has_all_fields():
     """Schema must be complete on every response, including error cases."""
@@ -249,7 +305,12 @@ def test_response_always_has_all_fields():
     assert_schema(resp)
     print("✓ Schema compliance verified")
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# OPTIONAL: Run with pytest and rate limit info
+# ─────────────────────────────────────────────────────────────────────────────
+
 if __name__ == "__main__":
     print(f"\n🚀 Running tests with {MIN_REQUEST_INTERVAL}s delay between requests")
     print(f"⏱️  Estimated total time: ~{15 * MIN_REQUEST_INTERVAL / 60:.1f} minutes\n")
-    pytest.main([__file__, "-v", "-s"])
+    pytest.main([__file__, "-v", "-s"])  # -s to see print statements
