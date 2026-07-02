@@ -305,6 +305,78 @@ def test_response_always_has_all_fields():
     assert_schema(resp)
     print("✓ Schema compliance verified")
 
+# ─────────────────────────────────────────────────────────────────────────────
+# EVALUATION METRICS TESTS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_precision_at_k():
+    """Test retrieval precision"""
+    from evaluation_metrics import RetrievalMetrics
+    
+    retrieved = [
+        {'name': 'Java 8 (New)'},
+        {'name': 'Spring Framework'},
+        {'name': 'Python Basics'}
+    ]
+    relevant = ['Java 8 (New)', 'Spring Framework']
+    
+    precision = RetrievalMetrics.precision_at_k(retrieved, relevant, k=3)
+    assert precision == 2/3
+    print(f"\n✓ Precision@3: {precision}")
+
+def test_recall_at_k():
+    """Test retrieval recall"""
+    from evaluation_metrics import RetrievalMetrics
+    
+    retrieved = [
+        {'name': 'Java 8 (New)'},
+        {'name': 'Spring Framework'}
+    ]
+    relevant = ['Java 8 (New)', 'Spring Framework', 'Python Basics']
+    
+    recall = RetrievalMetrics.recall_at_k(retrieved, relevant, k=2)
+    assert recall == 2/3
+    print(f"\n✓ Recall@2: {recall}")
+
+def test_hallucination_rate():
+    """Test hallucination detection"""
+    from evaluation_metrics import GroundednessMetrics
+    
+    recommendations = [
+        {'name': 'Real Assessment'},
+        {'name': 'Fake Assessment'}
+    ]
+    valid_assessments = {'Real Assessment'}
+    
+    hallucination_rate = GroundednessMetrics.hallucination_rate(
+        recommendations, valid_assessments
+    )
+    assert hallucination_rate == 0.5
+    print(f"\n✓ Hallucination Rate: {hallucination_rate}")
+
+def test_diversity_score():
+    """Test recommendation diversity"""
+    from evaluation_metrics import RecommendationRelevance
+    
+    recommendations = [
+        {'test_type': 'A'},
+        {'test_type': 'P'},
+        {'test_type': 'K'}
+    ]
+    
+    diversity = RecommendationRelevance.diversity_score(recommendations)
+    assert diversity == 1.0  # All different
+    
+    # Test with duplicates
+    recommendations = [
+        {'test_type': 'A'},
+        {'test_type': 'A'},
+        {'test_type': 'A'}
+    ]
+    diversity = RecommendationRelevance.diversity_score(recommendations)
+    assert diversity == 1/3
+    
+    print(f"\n✓ Diversity Score working")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OPTIONAL: Run with pytest and rate limit info

@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SHL Assessment Recommender — AI-Powered</title>
+  <meta name="description" content="Conversational AI agent that helps hiring managers find the right SHL assessments through natural dialogue." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Reset & Base ─────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:          #0b0f1a;
+      --bg2:         #111827;
+      --bg3:         #1c2333;
+      --border:      rgba(255,255,255,0.07);
+      --accent:      #3b82f6;
+      --accent-glow: rgba(59,130,246,0.25);
+      --accent2:     #6366f1;
+      --text:        #e2e8f0;
+      --muted:       #94a3b8;
+      --user-bubble: linear-gradient(135deg,#3b82f6,#6366f1);
+      --bot-bubble:  #1c2333;
+      --radius:      16px;
+      --shadow:      0 4px 24px rgba(0,0,0,0.4);
+
+      /* type badge colours */
+      --typeA: #3b82f6; --typeB: #f97316; --typeC: #8b5cf6;
+      --typeD: #10b981; --typeE: #eab308; --typeK: #ef4444;
+      --typeM: #ec4899; --typeP: #14b8a6; --typeS: #6366f1;
+    }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; overflow: hidden; }
+
+    /* ── Layout ───────────────────────────────────────────────────────── */
+    .app { display: flex; flex-direction: column; height: 100vh; max-width: 900px; margin: 0 auto; }
+
+    /* ── Header ───────────────────────────────────────────────────────── */
+    header {
+      padding: 18px 24px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg2);
+      display: flex; align-items: center; gap: 14px;
+      position: relative; z-index: 10;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.04);
+    }
+    .logo-ring {
+      width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
+      background: linear-gradient(135deg,#3b82f6,#6366f1);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; box-shadow: 0 0 18px var(--accent-glow);
+    }
+    .header-text h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.3px; }
+    .header-text p  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .status-dot {
+      margin-left: auto; display: flex; align-items: center; gap: 7px;
+      font-size: 12px; color: var(--muted);
+    }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #10b981;
+      box-shadow: 0 0 8px #10b981; animation: pulse-dot 2s ease-in-out infinite;
+    }
+    @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* ── Suggestions strip ────────────────────────────────────────────── */
+    .suggestions {
+      padding: 12px 20px; display: flex; gap: 8px; overflow-x: auto;
+      scrollbar-width: none; border-bottom: 1px solid var(--border);
+      background: var(--bg2);
+    }
+    .suggestions::-webkit-scrollbar { display: none; }
+    .chip {
+      flex-shrink: 0; padding: 6px 14px; border-radius: 20px; font-size: 12px;
+      border: 1px solid var(--border); background: var(--bg3); color: var(--muted);
+      cursor: pointer; transition: all .2s; white-space: nowrap;
+    }
+    .chip:hover { border-color: var(--accent); color: var(--text); background: rgba(59,130,246,0.08); }
+
+    /* ── Messages ─────────────────────────────────────────────────────── */
+    .messages {
+      flex: 1; overflow-y: auto; padding: 24px 20px;
+      display: flex; flex-direction: column; gap: 20px;
+      scroll-behavior: smooth;
+    }
+    .messages::-webkit-scrollbar { width: 4px; }
+    .messages::-webkit-scrollbar-track { background: transparent; }
+    .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    /* ── Message groups ───────────────────────────────────────────────── */
+    .msg-group { display: flex; flex-direction: column; gap: 6px; animation: fadeUp .3s ease; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+    .msg-group.user  { align-items: flex-end; }
+    .msg-group.bot   { align-items: flex-start; }
+    .avatar {
+      width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 14px;
+    }
+    .avatar.bot { background: linear-gradient(135deg,#3b82f6,#6366f1); box-shadow:0 0 12px var(--accent-glow); }
+    .avatar.user{ background: var(--bg3); border: 1px solid var(--border); }
+
+    .row { display: flex; align-items: flex-end; gap: 10px; }
+    .msg-group.user .row { flex-direction: row-reverse; }
+
+    .bubble {
+      max-width: 72%; padding: 12px 16px; border-radius: var(--radius);
+      font-size: 14px; line-height: 1.6; position: relative;
+    }
+    .msg-group.user .bubble {
+      background: var(--user-bubble); color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+    .msg-group.bot .bubble {
+      background: var(--bot-bubble); color: var(--text);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+    }
+
+    /* ── Typing indicator ─────────────────────────────────────────────── */
+    .typing { display: flex; align-items: center; gap: 5px; padding: 12px 16px; }
+    .typing span {
+      width: 7px; height: 7px; border-radius: 50%; background: var(--muted);
+      animation: blink 1.2s ease-in-out infinite;
+    }
+    .typing span:nth-child(2) { animation-delay: .2s; }
+    .typing span:nth-child(3) { animation-delay: .4s; }
+    @keyframes blink { 0%,100%{transform:scale(.8);opacity:.5} 50%{transform:scale(1.1);opacity:1} }
+
+    /* ── Recommendation cards ─────────────────────────────────────────── */
+    .recs-grid {
+      display: grid; grid-template-columns: repeat(auto-fill,minmax(240px,1fr));
+      gap: 10px; margin-top: 10px; animation: fadeUp .4s ease;
+    }
+    .rec-card {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 14px;
+      padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;
+      transition: transform .2s, border-color .2s, box-shadow .2s;
+      cursor: pointer; text-decoration: none;
+    }
+    .rec-card:hover {
+      transform: translateY(-2px); border-color: var(--accent);
+      box-shadow: 0 6px 20px rgba(59,130,246,0.15);
+    }
+    .rec-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+    .rec-name { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.4; }
+    .type-badge {
+      flex-shrink: 0; padding: 2px 8px; border-radius: 6px; font-size: 11px;
+      font-weight: 700; letter-spacing: .5px;
+    }
+    .rec-link {
+      font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 4px;
+    }
+    .rec-link svg { opacity: .6; }
+    .rec-number {
+      width: 20px; height: 20px; border-radius: 6px; background: rgba(255,255,255,0.06);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; color: var(--muted);
+    }
+
+    /* type badge colours */
+    .tA{background:rgba(59,130,246,.15);color:#60a5fa}
+    .tB{background:rgba(249,115,22,.15);color:#fb923c}
+    .tC{background:rgba(139,92,246,.15);color:#a78bfa}
+    .tD{background:rgba(16,185,129,.15);color:#34d399}
+    .tE{background:rgba(234,179,8,.15);color:#fbbf24}
+    .tK{background:rgba(239,68,68,.15);color:#f87171}
+    .tM{background:rgba(236,72,153,.15);color:#f472b6}
+    .tP{background:rgba(20,184,166,.15);color:#2dd4bf}
+    .tS{background:rgba(99,102,241,.15);color:#818cf8}
+
+    /* ── Input bar ────────────────────────────────────────────────────── */
+    .input-area {
+      padding: 16px 20px 20px; border-top: 1px solid var(--border);
+      background: var(--bg2);
+    }
+    .input-wrap {
+      display: flex; align-items: flex-end; gap: 10px;
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 14px; padding: 10px 10px 10px 16px;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .input-wrap:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+    textarea {
+      flex: 1; background: transparent; border: none; outline: none;
+      color: var(--text); font-family: 'Inter', sans-serif;
+      font-size: 14px; line-height: 1.5; resize: none; max-height: 140px;
+      min-height: 22px; overflow-y: auto;
+    }
+    textarea::placeholder { color: var(--muted); }
+    .send-btn {
+      width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+      background: linear-gradient(135deg,#3b82f6,#6366f1);
+      border: none; cursor: pointer; display: flex; align-items: center;
+      justify-content: center; transition: opacity .2s, transform .1s;
+      box-shadow: 0 2px 10px var(--accent-glow);
+    }
+    .send-btn:hover:not(:disabled) { opacity: .9; transform: scale(1.05); }
+    .send-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+    .send-btn svg { pointer-events: none; }
+
+    .hint { margin-top: 8px; text-align: center; font-size: 11px; color: var(--muted); }
+    .hint a { color: var(--accent); text-decoration: none; }
+
+    /* ── Empty state ──────────────────────────────────────────────────── */
+    .empty {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 16px; padding: 40px; text-align: center;
+    }
+    .empty-icon {
+      width: 72px; height: 72px; border-radius: 20px;
+      background: linear-gradient(135deg,rgba(59,130,246,.15),rgba(99,102,241,.15));
+      border: 1px solid rgba(59,130,246,.2);
+      display: flex; align-items: center; justify-content: center; font-size: 32px;
+      box-shadow: 0 0 40px rgba(59,130,246,.1);
+    }
+    .empty h2 { font-size: 20px; font-weight: 600; }
+    .empty p  { font-size: 14px; color: var(--muted); max-width: 380px; line-height: 1.6; }
+    .example-grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 4px; }
+    .example-btn {
+      padding: 8px 14px; border-radius: 10px; font-size: 12px; cursor: pointer;
+      border: 1px solid var(--border); background: var(--bg3); color: var(--muted);
+      transition: all .2s; font-family: inherit;
+    }
+    .example-btn:hover { border-color: var(--accent); color: var(--text); }
+
+    /* ── Scrollbar ────────────────────────────────────────────────────── */
+    .messages::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+
+    /* ── Responsive ───────────────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .bubble { max-width: 88%; }
+      .recs-grid { grid-template-columns: 1fr 1fr; }
+      header { padding: 14px 16px; }
+    }
+    @media (max-width: 400px) { .recs-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <div class="logo-ring">🎯</div>
+    <div class="header-text">
+      <h1>SHL Assessment Recommender</h1>
+      <p>AI-powered • Conversational • Grounded in SHL catalog</p>
+    </div>
+    <div class="status-dot">
+      <div class="dot" id="status-dot"></div>
+      <span id="status-label">Live</span>
+    </div>
+  </header>
+
+  <!-- Quick chips -->
+  <div class="suggestions">
+    <div class="chip" onclick="send('I am hiring a mid-level Java developer who also works with stakeholders')">☕ Java Developer</div>
+    <div class="chip" onclick="send('Looking for a senior data analyst for financial services with numerical reasoning')">📊 Data Analyst</div>
+    <div class="chip" onclick="send('Need assessments for a project manager hiring, including personality and cognitive tests')">📋 Project Manager</div>
+    <div class="chip" onclick="send('Hiring a sales manager for enterprise B2B accounts, mid-level')">💼 Sales Manager</div>
+    <div class="chip" onclick="send('We need a DevOps engineer with cloud experience, AWS and Azure')">☁️ DevOps Engineer</div>
+    <div class="chip" onclick="send('What is the difference between OPQ and the Motivation Questionnaire?')">🔍 Compare OPQ vs MQ</div>
+  </div>
+
+  <!-- Message area -->
+  <div class="messages" id="messages">
+
+    <!-- Empty state shown initially -->
+    <div class="empty" id="empty-state">
+      <div class="empty-icon">🎯</div>
+      <h2>Find the right SHL assessments</h2>
+      <p>Describe the role you're hiring for and I'll recommend the best assessments from the SHL catalog — with names, types, and direct links.</p>
+      <div class="example-grid">
+        <button class="example-btn" onclick="send('I am hiring a mid-level software engineer')">Mid-level Software Engineer</button>
+        <button class="example-btn" onclick="send('Looking for a customer service manager with leadership qualities')">Customer Service Manager</button>
+        <button class="example-btn" onclick="send('Hiring a data scientist with machine learning background')">Data Scientist (ML)</button>
+        <button class="example-btn" onclick="send('Need someone for finance and accounting roles')">Finance & Accounting</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Input -->
+  <div class="input-area">
+    <div class="input-wrap">
+      <textarea
+        id="input"
+        placeholder="Describe the role you're hiring for…"
+        rows="1"
+        onkeydown="handleKey(event)"
+        oninput="autoResize(this)"
+      ></textarea>
+      <button class="send-btn" id="send-btn" onclick="sendFromInput()" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </button>
+    </div>
+    <p class="hint">Powered by <a href="https://www.shl.com/solutions/products/product-catalog/" target="_blank">SHL Catalog</a> · Groq LLaMA 3.1 · <a href="/docs" target="_blank">API Docs</a></p>
+  </div>
+
+</div>
+
+<script>
+  // ── State ────────────────────────────────────────────────────────────────
+  const API = '';  // same origin
+  let history = [];  // { role, content }
+  let busy = false;
+
+  // ── Type badge labels ─────────────────────────────────────────────────────
+  const TYPE_META = {
+    A: { label: 'Ability',      cls: 'tA' },
+    B: { label: 'Biodata/SJT',  cls: 'tB' },
+    C: { label: 'Competencies', cls: 'tC' },
+    D: { label: 'Development',  cls: 'tD' },
+    E: { label: 'Exercises',    cls: 'tE' },
+    K: { label: 'Knowledge',    cls: 'tK' },
+    M: { label: 'Motivation',   cls: 'tM' },
+    P: { label: 'Personality',  cls: 'tP' },
+    S: { label: 'Simulations',  cls: 'tS' },
+  };
+
+  // ── DOM helpers ───────────────────────────────────────────────────────────
+  const $msgs   = document.getElementById('messages');
+  const $input  = document.getElementById('input');
+  const $btn    = document.getElementById('send-btn');
+  const $empty  = document.getElementById('empty-state');
+
+  function scrollBottom() {
+    $msgs.scrollTo({ top: $msgs.scrollHeight, behavior: 'smooth' });
+  }
+
+  function hideEmpty() {
+    if ($empty) { $empty.style.display = 'none'; }
+  }
+
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+    $btn.disabled = !el.value.trim() || busy;
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendFromInput(); }
+  }
+
+  // ── Render helpers ────────────────────────────────────────────────────────
+  function renderUserMsg(text) {
+    hideEmpty();
+    const g = document.createElement('div');
+    g.className = 'msg-group user';
+    g.innerHTML = `
+      <div class="row">
+        <div class="avatar user">🧑</div>
+        <div class="bubble">${escHtml(text)}</div>
+      </div>`;
+    $msgs.appendChild(g);
+    scrollBottom();
+    return g;
+  }
+
+  function renderTyping() {
+    const g = document.createElement('div');
+    g.className = 'msg-group bot';
+    g.id = 'typing-indicator';
+    g.innerHTML = `
+      <div class="row">
+        <div class="avatar bot">🎯</div>
+        <div class="bubble bot-bubble">
+          <div class="typing"><span></span><span></span><span></span></div>
+        </div>
+      </div>`;
+    $msgs.appendChild(g);
+    scrollBottom();
+    return g;
+  }
+
+  function renderBotMsg(reply, recs) {
+    const existing = document.getElementById('typing-indicator');
+    if (existing) existing.remove();
+
+    const g = document.createElement('div');
+    g.className = 'msg-group bot';
+
+    let inner = `
+      <div class="row">
+        <div class="avatar bot">🎯</div>
+        <div class="bubble">${escHtml(reply)}</div>
+      </div>`;
+
+    if (recs && recs.length > 0) {
+      inner += `<div class="recs-grid">`;
+      recs.forEach((rec, i) => {
+        const tm = TYPE_META[rec.test_type] || { label: rec.test_type, cls: '' };
+        const shortUrl = rec.url.replace('https://www.shl.com', '').replace(/\/$/, '') || '/';
+        inner += `
+          <a class="rec-card" href="${escAttr(rec.url)}" target="_blank" rel="noopener">
+            <div class="rec-header">
+              <div class="rec-name">${escHtml(rec.name)}</div>
+              <div class="type-badge ${tm.cls}">${escHtml(tm.label)}</div>
+            </div>
+            <div class="rec-link">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              ${escHtml(shortUrl)}
+            </div>
+          </a>`;
+      });
+      inner += `</div>`;
+      inner += `<p style="font-size:11px;color:var(--muted);margin-top:6px;margin-left:40px">${recs.length} assessment${recs.length>1?'s':''} recommended — click any card to view on SHL.com</p>`;
+    }
+
+    g.innerHTML = inner;
+    $msgs.appendChild(g);
+    scrollBottom();
+    return g;
+  }
+
+  // ── Core send function ────────────────────────────────────────────────────
+  async function send(text) {
+    text = text.trim();
+    if (!text || busy) return;
+
+    busy = true;
+    $btn.disabled = true;
+    $input.value = '';
+    $input.style.height = 'auto';
+
+    // Add to history and render
+    history.push({ role: 'user', content: text });
+    renderUserMsg(text);
+    const typingEl = renderTyping();
+
+    try {
+      const res = await fetch(`${API}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: history }),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      // Add assistant reply to history (as JSON string for stateless API)
+      const assistantContent = JSON.stringify({
+        reply: data.reply,
+        recommendations: data.recommendations,
+        end_of_conversation: data.end_of_conversation,
+      });
+      history.push({ role: 'assistant', content: assistantContent });
+
+      typingEl.remove();
+      renderBotMsg(data.reply, data.recommendations);
+
+      // If end of conversation, reset after a delay
+      if (data.end_of_conversation) {
+        setTimeout(() => {
+          history = [];
+          const notice = document.createElement('div');
+          notice.style.cssText = 'text-align:center;font-size:12px;color:var(--muted);padding:8px;';
+          notice.textContent = '— Conversation ended. Start a new query below —';
+          $msgs.appendChild(notice);
+          scrollBottom();
+        }, 1500);
+      }
+
+    } catch (err) {
+      typingEl.remove();
+      renderBotMsg('⚠️ Something went wrong. Make sure the API server is running.', []);
+      history.pop(); // Remove failed user message from history
+      console.error(err);
+    }
+
+    busy = false;
+    $btn.disabled = !$input.value.trim();
+    $input.focus();
+  }
+
+  function sendFromInput() {
+    send($input.value);
+  }
+
+  // ── Escape helpers ────────────────────────────────────────────────────────
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/\n/g,'<br>');
+  }
+  function escAttr(s) { return String(s).replace(/"/g,'&quot;'); }
+
+  // ── Enable send btn on input ──────────────────────────────────────────────
+  $input.addEventListener('input', () => {
+    $btn.disabled = !$input.value.trim() || busy;
+  });
+
+  // ── Health check ──────────────────────────────────────────────────────────
+  (async function checkHealth() {
+    try {
+      const r = await fetch(`${API}/health`, { signal: AbortSignal.timeout(5000) });
+      const ok = r.ok && (await r.json()).status === 'ok';
+      document.getElementById('status-dot').style.background   = ok ? '#10b981' : '#ef4444';
+      document.getElementById('status-dot').style.boxShadow   = ok ? '0 0 8px #10b981' : '0 0 8px #ef4444';
+      document.getElementById('status-label').textContent      = ok ? 'Live' : 'Offline';
+      if (!ok) document.getElementById('status-dot').style.animation = 'none';
+    } catch { /* offline */ }
+  })();
+
+  // ── Auto-welcome ──────────────────────────────────────────────────────────
+  // Uncomment to show a welcome message immediately:
+  // window.addEventListener('load', () => {
+  //   renderBotMsg("👋 Hi! I'm the SHL Assessment Recommender. Tell me about the role you're hiring for and I'll suggest the best assessments from the SHL catalog.", []);
+  // });
+</script>
+</body>
+</html>

@@ -6,7 +6,7 @@ The response schema is NON-NEGOTIABLE — it is what SHL's evaluator expects.
 """
 
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional
+from typing import Optional, List
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -36,7 +36,7 @@ class ChatRequest(BaseModel):
 class Recommendation(BaseModel):
     name: str
     url: str
-    test_type: str  # single letter code: A, B, C, D, E, K, M, P, S
+    test_type: str  # Single letter: A, B, C, D, E, K, M, P, S
 
 
 class ChatResponse(BaseModel):
@@ -61,6 +61,7 @@ class CatalogEntry(BaseModel):
     url: str
     test_type: str
     test_type_label: Optional[str] = ""
+    all_test_types: Optional[List[str]] = []
     description: Optional[str] = ""
     remote_testing: Optional[bool] = False
     adaptive: Optional[bool] = False
