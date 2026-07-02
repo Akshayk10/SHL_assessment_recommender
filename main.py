@@ -47,9 +47,9 @@ _catalog_ready: bool = False
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Startup: load catalog + build hybrid retrieval indexes.
-    FAISS dense index is built lazily on first search to save cold-start time.
-    BM25 index is built eagerly (fast, ~1 second).
+    Startup: load catalog + build ALL retrieval indexes eagerly.
+    FAISS dense index is now built at startup (not lazily) to prevent
+    the first /chat request from timing out on Render free tier.
     """
     global _catalog_ready
 
@@ -64,9 +64,20 @@ async def lifespan(app: FastAPI):
         # 2. Build BM25 index eagerly (fast, ~0.5s)
         from retrieval_hybrid import get_hybrid_retriever
         hybrid = get_hybrid_retriever()
-        logger.info("BM25 index built. Dense FAISS index will build on first query.")
+        logger.info("BM25 index built.")
 
-        # 3. Also load legacy catalog format for backward compatibility
+        # 3. EAGERLY build FAISS dense index with a warmup query
+        #    This triggers fastembed model download + encode all 377 docs.
+        #    Done at startup so the first /chat request is never slow.
+        logger.info("Building FAISS dense index (warmup)... this takes ~30s on first run")
+        try:
+            from retrieval_rag import retrieve_assessments
+            _ = retrieve_assessments("software engineer developer", k=1)
+            logger.info("FAISS dense index ready.")
+        except Exception as exc:
+            logger.warning(f"FAISS warmup failed (non-fatal): {exc}")
+
+        # 4. Also load legacy catalog format for backward compatibility
         try:
             from retrieval import load_catalog
             load_catalog()
