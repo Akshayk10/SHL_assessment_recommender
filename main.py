@@ -66,16 +66,21 @@ async def lifespan(app: FastAPI):
         hybrid = get_hybrid_retriever()
         logger.info("BM25 index built.")
 
-        # 3. EAGERLY build FAISS dense index with a warmup query
+        # 3. Build FAISS dense index in the background
         #    This triggers fastembed model download + encode all 377 docs.
-        #    Done at startup so the first /chat request is never slow.
-        logger.info("Building FAISS dense index (warmup)... this takes ~30s on first run")
-        try:
-            from retrieval_rag import retrieve_assessments
-            _ = retrieve_assessments("software engineer developer", k=1)
-            logger.info("FAISS dense index ready.")
-        except Exception as exc:
-            logger.warning(f"FAISS warmup failed (non-fatal): {exc}")
+        #    Done in a background thread so the server can bind the port
+        #    immediately and avoid Render's port scan timeout.
+        import threading
+        def warmup_faiss():
+            logger.info("Building FAISS dense index (background)... this takes ~60s on first run")
+            try:
+                from retrieval_rag import retrieve_assessments
+                _ = retrieve_assessments("software engineer developer", k=1)
+                logger.info("FAISS dense index ready.")
+            except Exception as exc:
+                logger.warning(f"FAISS warmup failed (non-fatal): {exc}")
+        
+        threading.Thread(target=warmup_faiss, daemon=True).start()
 
         # 4. Also load legacy catalog format for backward compatibility
         try:
